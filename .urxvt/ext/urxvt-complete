@@ -1,0 +1,387 @@
+#!/usr/bin/perl
+# Author: stdliu@gmail.com
+# License: GPLv2
+
+# URxvt completion extension.
+#
+# Usage : 
+# URxvt.perl-ext-common: urxvt-complete
+# URxvt.keysym.M-Tab: perl:urxvt-complete:activate
+# URxvt.keysym.M-0x2f: perl:urxvt-complete:activate
+#
+# Use Alt-Tab or Alt-/ to activate completion mode, then use the following keys:
+# 	Ctrl-n/Alt-n/Down : next.
+# 	Ctrl-p/Alt-p/Up : previous.
+# 	Ctrl-f/Ctrl-v/PageDown : next page.
+# 	Ctrl-b/Alt-v/PageUp: previous page.
+# 	Tab : forward common prefix, or next.
+# 	Enter/Space : commit.
+# 	Escape: deactivate complete mode.
+#
+
+use List::Util qw(min max);
+use Time::HiRes qw(gettimeofday);
+use File::Basename ();
+
+sub LOG {
+	my @arg = @_;
+	printf "[%d%06d] ", gettimeofday();
+	print @arg,"\n";
+}
+
+#
+# Attributes: 
+# 	activate : bool, is activated
+# 	all_match : matched text array reference
+# 	match_str : cursor string for match
+# 	ol_x : overlay x
+# 	ol_y : overlay y
+# 	ol_w : overlay width
+# 	ol_h : overlay height
+# 	prev_row : previous corsor row.
+# 	prev_col : previous corsor col.
+# 	nl_rend : normal overlay rend
+# 	hl_rend : highlight overlay rend
+# 	status_rend : status line overlay rend
+# 	status_line_fmt : status line printf format
+# 	ol_start : overlay display start offset in all_match
+# 	cur_index : selected string index in all_match
+# 	empty_row : empty string, used to reset overlay row.
+# 	in_line_update: in line update, can not be reseted in deactivate
+# 	url_pattern : URL regex pattern.
+
+# load plugin
+my $plugin_dir = File::Basename::dirname(__FILE__) . "/urxvt-complete-plugin/";
+our @plugin_funs = ();
+if ( -d $plugin_dir) {
+	my @files = glob($plugin_dir . "*.pl");
+	foreach my $f (@files) {
+		do $f;
+	}
+}
+
+sub on_start {
+	my ($self) = @_; 
+	$self->{hl_rend} = [ () ];
+	$self->{nl_rend} = [ () ];
+	$self->{empty_row} = ' ' x 180;
+	$self->{url_pattern} = qr{(?:\w+://|mailto:|www\.)[\w\-\@;\/?:&=%\$_.+!*\x27(),~#]+[\w\-\@;\/?&=%\$_+!*\x27()~]};
+	$self->{status_rend} = [ () ];
+	$self->{status_line_fmt} = ' [%d of %d] ';
+}
+
+sub on_user_command {
+    my ($self, $cmd) = @_; 
+
+    if ($cmd eq 'urxvt-complete:activate') {
+		activate($self);
+    }
+	()
+}
+
+sub all_text {
+	my ($self, $only_visible) = @_;
+
+	my $text = "";
+	for (my $i = $only_visible ? 0 : $self->top_row; $i < $self->nrow; $i++) {
+		$text = $text . $self->ROW_t($i);
+	}
+
+	return $text;
+}
+
+sub cursor_text {
+	my ($self) = @_;
+	my ($row, $col) = $self->screen_cur();
+	$row = $self->ROW_t($row);
+	$row = substr($row, 0, $col);
+	if ($row =~ /.*\s([^\s]*)\z/) {
+		$row = $1;
+	}
+
+	return $row
+}
+
+sub match_array {
+	my ($self, $cur, $only_visible) = @_;
+	my $all = all_text($self, $only_visible);
+	$all = $self->special_decode($all);
+	$cur = $self->special_decode($cur);
+
+	my ($row, $col) = $self->screen_cur();
+	$row = $self->ROW_t($row);
+	$row = substr($row, 0, $col);
+	$row = $self->special_decode($row);
+
+	foreach my $fun (@plugin_funs) {
+		my $plugin_res = &$fun($row, $all);
+		$all = $all . " " . $plugin_res;
+	}
+
+	my %seen = map {$_ => 1} (
+		split(/\s+/, $all),
+		split(/[^\w]+/, $all),
+		$all =~ /$self->{url_pattern}/g);
+	my @match = ();
+	my $len = length($cur);
+	foreach my $str (keys %seen) {
+		if ((substr($str, 0, $len) eq $cur) and (length($str) > $len)) {
+			push(@match, $self->special_encode($str));
+		}
+	}
+
+	return sort(@match);
+}
+
+sub max_str_length {
+	my (@all) = @_;
+	my $len = 0;
+	for my $s (@all) {
+		$len = length($s) if (length($s) > $len);
+	}
+
+	return $len;
+}
+
+sub common_prefix_length {
+	my $prefix = shift;
+	for (@_) {
+		chop $prefix while (! /^\Q$prefix\E/);
+	}
+	return length($prefix);
+}
+
+sub set_ol_text {
+	my ($self) = @_;
+
+	my @all= @{$self->{all_match}};
+	my $h = $self->{ol_h};
+	my $w = $self->{ol_w};
+	my $index = $self->{cur_index};
+	my $start = $self->{ol_start};
+	my $ol = $self->{overlay};
+
+	for (scalar(@{$self->{hl_rend}}) .. $w) {
+		push(@{$self->{hl_rend}}, urxvt::SET_BGCOLOR(urxvt::OVERLAY_RSTYLE, 5));
+		push(@{$self->{nl_rend}}, urxvt::OVERLAY_RSTYLE);
+		push(@{$self->{status_rend}}, urxvt::SET_FGCOLOR(urxvt::OVERLAY_RSTYLE, 0));
+	}
+
+	$self->{empty_row} = ' ' x $w if (length($self->{empty_row}) < $w);
+	foreach my $i ($start .. $start + $h - 2) {
+		# reset to empty line first
+		$ol->set(0, $i - $start, $self->{empty_row});
+		$ol->set(0, $i - $start, $all[$i],
+			$i == $index ? \@{$self->{hl_rend}} : \@{$self->{nl_rend}});
+	}
+	$ol->set(0, $h - 1, $self->{empty_row});
+	my $status_line = sprintf $self->{status_line_fmt}, $index + 1, scalar(@all);
+	$ol->set(0, $h - 1, $status_line, \@{$self->{status_rend}});
+}
+
+sub setup_overlay {
+	my ($self) = @_;
+
+	my @all= @{$self->{all_match}};
+	my $match_len = length($self->{match_str});
+
+	my $h = min(scalar(@all) + 1, int($self->nrow / 2));
+	my $w = min($self->ncol, max(max_str_length(@all),
+			length(sprintf($self->{status_line_fmt}, scalar(@all), scalar(@all)))));
+	my ($y, $x) = $self->screen_cur();
+	$x = $x - $match_len;
+	$y = ($y + 1 + $h >= $self->nrow) ? ($y - $h) : ($y + 1);
+	$self->{ol_x} = $x;
+	$self->{ol_y} = $y;
+	$self->{ol_w} = $w;
+	$self->{ol_h} = $h;
+	$self->{cur_index} = 0;
+	$self->{ol_start} = 0;
+	($self->{prev_row}, $self->{prev_col}) = $self->screen_cur();
+
+	delete $self->{overlay} if $self->{overlay};
+	$self->{overlay} = $self->overlay($x, $y, $w, $h, urxvt::OVERLAY_RSTYLE, 0);
+	my $ol = $self->{overlay};
+	$self->want_refresh();
+
+}
+
+sub goto_next {
+	my ($self, $forward) = @_;
+
+	my $len = scalar(@{$self->{all_match}});
+	my $h = $self->{ol_h} - 1;
+	$self->{cur_index} = ($len + $self->{cur_index} + $forward) % $len;
+	if ($self->{ol_start} + $h <= $self->{cur_index}) {
+		$self->{ol_start} = $self->{cur_index} - $h + 1;
+	}
+	if ($self->{ol_start} > $self->{cur_index}) {
+		$self->{ol_start} = $self->{cur_index};
+	}
+
+	set_ol_text($self);
+}
+
+sub goto_next_page {
+	my ($self, $forward) = @_;
+
+	my $len = scalar(@{$self->{all_match}});
+	my $h = $self->{ol_h} - 1;
+	my $offset = $self->{cur_index} - $self->{ol_start};
+	if ($self->{ol_start} != 0 && $self->{ol_start} + $forward * $h < 0) {
+		$self->{ol_start} = 0;
+	} else {
+		$self->{ol_start} = ($len + $self->{ol_start} + $forward * $h) % $len;
+	}
+	my $back = $self->{ol_start} + $h - $len;
+	if ($back > 0) {
+		$self->{ol_start} -= $back;
+	}
+	$self->{cur_index} = $self->{ol_start} + $offset;
+
+	set_ol_text($self);
+}
+
+sub line_update {
+	my ($self, $row) = @_; 
+
+	my $cur = cursor_text($self);
+	my ($row, $col) = $self->screen_cur();
+	if ($cur eq $self->{match_str}
+			and $row == $self->{prev_row} and $col == $self->{prev_col}) {
+		return;
+	}
+
+	$self->{in_line_update} = 1;
+	if ($row == $self->{prev_row} and $col > $self->{prev_col}
+			and substr($cur, 0, length($self->{match_str})) eq $self->{match_str}) {
+		$self->{match_str} = $cur;
+		my $len = length($cur);
+		@{$self->{all_match}} = grep { length($_) > $len and substr($_, 0, $len) eq $cur } @{$self->{all_match}};
+		deactivate($self) if !display_match($self);
+	} else {
+		deactivate($self);
+		activate($self);
+	}
+	$self->{in_line_update} = 0;
+}
+
+sub key_press {
+	my ($self, $event, $keysym, $string) = @_;
+
+	# lookup keyboard code in X11/keysymdef.h
+
+	my $char = chr($keysym);
+	if ($keysym == 0xff1b) { # Esc
+		deactivate($self);
+		return 1;
+	} elsif ($keysym == 0xff52) { # Up
+		goto_next($self, -1);
+		return 1;
+	} elsif ($keysym == 0xff54) { # Down
+		goto_next($self, 1);
+		return 1;
+	} elsif ($keysym == 0x0020 || $keysym == 0xff0d || $keysym == 0xff8d) { # Space, Enter, Enter
+		commit($self);
+		return 1;
+	} elsif ($keysym == 0xff09) { # Tab
+		if (scalar(@{$self->{all_match}}) == 1) {
+			commit($self);
+		} else {
+			my $prefix_len = common_prefix_length(@{$self->{all_match}});
+			if ($prefix_len > length($self->{match_str})) {
+				forward($self, length($self->{match_str}), $prefix_len);
+			} else {
+				goto_next($self, 1);
+			}
+		}
+		return 1;
+	} elsif ($keysym == 0xff55) { # PageUp
+		goto_next_page($self, -1);
+		return 1;
+	} elsif ($keysym == 0xff56) { # PageDown
+		goto_next_page($self, 1);
+		return 1;
+	} elsif (($event->{state} & urxvt::ControlMask) || ($event->{state} & urxvt::Mod1Mask)) { # Mod1 == ALT
+		if ($char eq 'n') {
+			goto_next($self, 1);
+			return 1;
+		} elsif ($char eq 'p') {
+			goto_next($self, -1);
+			return 1;
+		} elsif ($char eq 'f') {
+			goto_next_page($self, 1);
+			return 1;
+		} elsif ($char eq 'b') {
+			goto_next_page($self, -1);
+			return 1;
+		} elsif ($char eq 'v') {
+			goto_next_page($self, 1) if ($event->{state} & urxvt::ControlMask);
+			goto_next_page($self, -1) if ($event->{state} & urxvt::Mod1Mask);
+			return 1;
+		}
+	}
+	return ;
+}
+
+sub forward {
+	my ($self, $mlen, $plen) = @_;
+	my $str = substr($self->{all_match}[$self->{cur_index}], $mlen, $plen - $mlen);
+
+	$self->tt_write($self->locale_encode($self->special_decode($str)));
+}
+
+sub commit {
+	my ($self) = @_; 
+	my $str = $self->{all_match}[$self->{cur_index}];
+
+	$str = substr($str, length($self->{match_str}));
+	deactivate($self);
+	# $self->scr_add_lines($str);
+	$self->tt_write($self->locale_encode($self->special_decode($str)));
+}
+
+sub display_match {
+	my ($self) = @_;
+
+	$self->{cur_index} = 0;
+	if (! @{$self->{all_match}}) {
+		return 0;
+	} elsif (scalar(@{$self->{all_match}}) == 1 && !$self->{in_line_update}) {
+		commit($self);
+		return 1;
+	}
+
+	setup_overlay($self);
+	set_ol_text($self);
+	return 1;
+}
+
+
+sub activate {
+	my ($self) = @_;
+
+	my $cur = cursor_text($self);
+
+	$self->{all_match} = [ match_array($self, $cur) ];
+	$self->{match_str} = $cur;
+
+	return if !display_match($self);
+	$self->{activate} = 1;
+	$self->enable(
+		"key_press" => \&key_press,
+		"line_update" => \&line_update,
+	);
+}
+
+sub deactivate {
+	my ($self) = @_;
+
+	$self->disable("key_press", "line_update");
+	if ($self->{overlay}) {
+		delete $self->{overlay};
+		$self->want_refresh();
+	}
+	$self->{activate} = 0;
+}
+

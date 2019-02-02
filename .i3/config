@@ -224,6 +224,6 @@ for_window [class="Nautilus"] floating enable
 
 exec "setxkbmap -layout it"
 
-exec_always feh --bg-scale ${HOME}/.vim/nuovo.png
+exec_always feh --bg-scale ${HOME}/Pictures/nuovo.png
 exec --no-startup-id i3-sensible-terminal
 

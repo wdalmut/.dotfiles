@@ -58,6 +58,7 @@ set colorcolumn=120
 let &colorcolumn=join(range(121,999),",")
 highlight ColorColumn ctermbg=235
 
+set backupcopy=yes
 set backupdir=~/.tmp
 set directory=~/.tmp " Don't clutter my dirs up with swp and tmp files
 
@@ -400,9 +401,18 @@ set wildignore+=*/tmp/*,*.so,*.swp,*.zip,*~
 let g:ctrlp_working_path_mode = '0'
 
 " Syntastic check
+let g:syntastic_always_populate_loc_list = 1
+let g:syntastic_auto_loc_list = 1
+let g:syntastic_check_on_open = 1
+let g:syntastic_check_on_wq = 0
+
+" Syntastic check
 let g:syntastic_html_checkers=['jshint']
 let g:syntastic_json_checkers=['jsonlint']
-let g:syntastic_javascript_checkers=['jshint']
+let g:syntastic_javascript_checkers = ['eslint']
+let g:syntastic_javascript_eslint_exe = 'npm run lint --'
+
+
 let g:syntastic_php_checkers=['php']
 
 " Supertab config

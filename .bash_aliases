@@ -4,6 +4,8 @@ stty -ixon
 
 export EDITOR=vim
 
+export GOPATH=$HOME/golang
+
 source ~/.bash-git-prompt/gitprompt.sh
 GIT_PROMPT_ONLY_IN_REPO=1
 
@@ -25,10 +27,16 @@ alias mynet='nmtui'
 
 alias config='/usr/bin/git --git-dir=$HOME/.dotfiles --work-tree=$HOME'
 
-PATH=${PATH}:~/bin:~/node/bin:~/go/bin:~/jdk/bin
+alias k='kubectl'
 
-source /usr/share/git/completion/git-prompt.sh
+PATH=${PATH}:~/bin:~/node/bin:~/go/bin:~/jdk/bin:~/golang/bin
+PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+
+#source /usr/share/git/completion/git-prompt.sh
 source <(kubectl completion bash)
+source <(skaffold completion bash)
+source <(tkn completion bash)
+source <(kind completion bash)
 
 xset -b
 

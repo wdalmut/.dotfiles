@@ -242,9 +242,6 @@ inoremap <expr> <C-k> ((pumvisible())?("\<C-p>"):("\<C-k>"))
 au BufRead,BufNewFile *.md setlocal textwidth=80
 au BufRead,BufNewFile *.rst setlocal textwidth=80
 "
-" PHP
-"
-au FileType php set omnifunc=phpcomplete#CompletePHP
 " LESS
 au BufNewFile,BufRead *.less set filetype=less
 " WSGI
@@ -325,17 +322,8 @@ map <Leader>ga :Gcommit -a<CR>
 map <Leader>gw :Gwrite<CR>
 map <Leader>gl :Gitv<CR>
 
-" Disable markdown preview
-let g:instant_markdown_autostart = 0
-" Open preview window
-map <Leader>mdp :InstantMarkdownPreview<CR>
-
 " Create folder at current path
 map <Leader>mk :!mkdir -p %:h<CR><CR>
-
-" PHP Namespaces
-inoremap <Leader>u <C-O>:call PhpInsertUse()<CR>
-noremap <Leader>u :call PhpInsertUse()<CR>
 
 " Edit another file in the same directory as the current file
 " uses expression to extract path from current file's path
@@ -354,12 +342,6 @@ map <Leader>\| :vnew<cr>
 
 " format table
 noremap <Leader>tab :Tabularize /\|<CR>
-
-" phpunit
-au FileType php noremap <Leader>tau <ESC>:let g:phpunit_args_append=""<ESC>:Test <CR>
-au FileType php noremap <Leader>tu  <ESC>:let g:phpunit_args_append=""<ESC>:Test %<CR>
-au FileType php noremap <Leader>tt <ESC>:let g:phpunit_args_append="-v --filter " . @t<ESC>:Test<CR>
-au FileType php noremap <Leader>to  <ESC>:TestOutput<CR>
 
 " javascript
 au FileType javascript noremap <Leader>tu <ESC>:!npm test %<CR>
@@ -424,9 +406,6 @@ let g:ctrlp_match_window = 'max:30'
 let g:gist_show_privates = 1
 let g:gist_post_private = 1
 
-" Phpunit
-let g:phpunit_args="--colors"
-
 "statusline setup
 set statusline =%#StatusLineFilename#
 set statusline+=[%f]    "tail of the filename
@@ -488,9 +467,6 @@ cmap w!! w !sudo tee > /dev/null %
 iab flase       false
 iab ture        true
 iab clinet      client
-
-" override colors for PHP
-let php_var_selector_is_identifier=1
 
 " exclude vendor folder during search
 :set wildignore+=**/vendor/**

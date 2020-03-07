@@ -1,0 +1,296 @@
+snippet skaffold "Skaffold"
+apiVersion: skaffold/v1
+kind: Config
+metadata:
+  name: $1
+build:
+  artifacts:
+  - image: $2
+    context: $3
+    docker:
+      dockerfile: Dockerfile
+deploy:
+  kubectl:
+    manifests:
+    - $4
+endsnippet
+
+snippet deployment "Deployment"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $1
+  namespace: $2
+spec:
+  selector:
+    matchLabels:
+      app: $3
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: $3
+    spec:
+      containers:
+      - name: $4
+        image: $5
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "128m"
+          limits:
+            memory: "128Mi"
+            cpu: "128m"
+endsnippet
+
+snippet role "Role"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: $1
+  namespace: $2
+rules:
+- apiGroups:
+  - $3
+  resources:
+  - $4
+  verbs:
+  - $5
+endsnippet
+
+snippet rolebinding "RoleBinding"
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: $1
+  namespace: $2
+subjects:
+- kind: ServiceAccount
+  name: $3
+  namespace: $2
+roleRef:
+  kind: Role
+  name: $4
+  apiGroup: rbac.authorization.k8s.io
+endsnippet
+
+snippet clusterrole "ClusterRole"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: $1
+rules:
+- apiGroups:
+  - "$2"
+  resources:
+  - "$3"
+  verbs:
+  - "$4"
+endsnippet
+
+snippet serviceaccount "ServiceAccount"
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: $1
+  namespace: $2
+endsnippet
+
+snippet clusterrolebinding "ClusterRoleBinding"
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: $1
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: $2
+subjects:
+  - kind: ServiceAccount
+    name: $3
+    namespace: $4
+endsnippet
+
+snippet service "Service"
+apiVersion: v1
+kind: Service
+metadata:
+  name: $1
+  namespace: $2
+spec:
+  selector:
+    app: $3
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: $4
+      targetPort: $4
+endsnippet
+
+snippet nodeport "NodePort"
+apiVersion: v1
+kind: Service
+metadata:
+  name: $1
+spec:
+  selector:
+    app: $2
+  type: NodePort
+  ports:
+  - port: $3
+    targetPort: $3
+    nodePort: $4
+    protocol: TCP
+endsnippet
+
+snippet pod "Pod"
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $1
+spec:
+  containers:
+  - name: $2
+    image: $3
+    ports:
+    - containerPort: $4
+endsnippet
+
+snippet statefulset "StatefulSet"
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: $1
+spec:
+  selector:
+    matchLabels:
+      app: $2
+  serviceName: "$3"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: $4
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: $5
+        image: $6
+        ports:
+        - containerPort: $7
+        volumeMounts:
+        - name: $8
+          mountPath: $9
+  volumeClaimTemplates:
+  - metadata:
+      name: $8
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "$9"
+      resources:
+        requests:
+          storage: $10Gi
+endsnippet
+
+snippet configmap "ConfigMap"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: $1
+  namespace: $2
+data:
+  $3: $4
+endsnippet
+
+snippet secret "Secret"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: $1
+type: Opaque
+stringData:
+  $2: $3
+endsnippet
+
+snippet daemonset "DaemonSet"
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: $1
+  namespace: $2
+spec:
+  selector:
+    matchLabels:
+      name: $3
+  template:
+    metadata:
+      labels:
+        name: $3
+    spec:
+      containers:
+      - name: $4
+        image: $5
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        volumeMounts:
+        - name: $6
+          mountPath: $7
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: $6
+        hostPath:
+          path: $7
+endsnippet
+
+snippet cronjob "CronJob"
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: $1
+spec:
+  schedule: "$2"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: $3
+            image: $4
+            args:
+            - $5
+endsnippet
+
+snippet ingress "Ingress"
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: $1
+  annotations:
+    $2: $3
+spec:
+  rules:
+  $4
+endsnippet
+
+snippet host "IngressHost"
+- host: $1
+  http:
+    paths:
+    - path: $2
+    backend:
+      serviceName: $3
+      servicePort: $4
+endsnippet
+
+snippet path "IngressPath"
+- http:
+    paths:
+    - path: $1
+      backend:
+        serviceName: $2
+        servicePort: $3
+endsnippet

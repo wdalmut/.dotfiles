@@ -31,6 +31,7 @@ alias k='kubectl'
 
 PATH=${PATH}:~/bin:~/node/bin:~/go/bin:~/jdk/bin:~/golang/bin
 PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
+PATH=${PATH}:/home/linuxbrew/.linuxbrew/bin
 
 #source /usr/share/git/completion/git-prompt.sh
 source <(kubectl completion bash)

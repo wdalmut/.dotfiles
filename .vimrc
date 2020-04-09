@@ -36,6 +36,7 @@ Plugin 'wdalmut/vim-relatedtest'
 Plugin 'w0ng/vim-hybrid'
 Plugin 'tpope/vim-markdown'
 Plugin 'pangloss/vim-javascript'
+Plugin 'leafgarland/typescript-vim'
 
 if shouldInstallBundles == 1
     echo "~> Installing vundle bundles"
@@ -269,10 +270,17 @@ autocmd InsertLeave * match ExtraWhitespace /\s\+$/
 autocmd BufWinLeave * call clearmatches()
 
 " Use 2 space on specific files
-autocmd Filetype sls,coffee,js,javascript,json,yaml setlocal ts=2 sts=2 sw=2
+autocmd Filetype sls,coffee,js,javascript,json,yaml,ts,typescript setlocal ts=2 sts=2 sw=2
+
+" Typescript rules
+let g:typescript_compiler_binary = 'npm run build'
+let g:typescript_compiler_options = ''
+
+autocmd QuickFixCmdPost [^l]* nested cwindow
+autocmd QuickFixCmdPost    l* nested lwindow
 
 " Remove trailing spaces
-au FileType vim,php,c,python,html,twig,yml,xml,js,javascript,md,sls au BufWritePre *.* :%s/\s\+$//e
+au FileType vim,php,c,python,html,twig,yml,xml,js,ts,javascript,md,sls au BufWritePre *.* :%s/\s\+$//e
 
 "
 " MAPPINGS
@@ -470,6 +478,8 @@ iab clinet      client
 
 " exclude vendor folder during search
 :set wildignore+=**/vendor/**
+:set wildignore+=**/build/**
+:set wildignore+=**/lib/**
 
 " Copy using xclip
 vmap <F6> :!xclip -f -sel clip<CR>

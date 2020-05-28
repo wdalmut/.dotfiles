@@ -32,6 +32,7 @@ alias k='kubectl'
 PATH=${PATH}:~/bin:~/node/bin:~/go/bin:~/jdk/bin:~/golang/bin
 PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 PATH=${PATH}:/home/linuxbrew/.linuxbrew/bin
+GOPATH=~/go
 
 #source /usr/share/git/completion/git-prompt.sh
 source <(kubectl completion bash)
@@ -40,4 +41,7 @@ source <(tkn completion bash)
 source <(kind completion bash)
 
 xset -b
+
+export PATH=${PATH}:~/git/fabric-sample/bin
+export PATH=$PATH:~/Android/Sdk/platform-tools:~/Android/Sdk/tools:~/Android/Sdk/tools/bin
 

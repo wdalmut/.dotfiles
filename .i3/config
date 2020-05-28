@@ -226,6 +226,7 @@ exec "setxkbmap -layout it"
 
 exec_always feh --bg-scale ${HOME}/Pictures/nuovo.png
 exec --no-startup-id i3-sensible-terminal
+exec_always dbus-update-activation-environment --systemd DISPLAY
 
 exec --no-startup-id xrandr --output eDP-1 --mode 1920x1080
 
